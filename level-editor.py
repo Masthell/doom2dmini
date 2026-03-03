@@ -30,7 +30,7 @@ scroll = 0
 scroll_speed = 1
 
 #load images - только одно фоновое изображение doom.png
-doom_bg = pygame.image.load('doom.jpg').convert_alpha()
+doom_bg = pygame.image.load('doom.png').convert_alpha()
 # Масштабируем изображение под размер экрана
 doom_bg = pygame.transform.scale(doom_bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
 

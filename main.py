@@ -8,12 +8,12 @@ import button
 mixer.init()
 pygame.init()
 
-SCREEN_WIDTH = 1200
-SCREEN_HEIGHT = int(SCREEN_WIDTH * 0.5)
+SCREEN_WIDTH = 1366
+SCREEN_HEIGHT = 768
 
 # Create a display surface object of specific dimension
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption('PyShooter - SamirPaul1')
+pygame.display.set_caption('дум2д побег из острова эпштейна')
 
 # Creating a new clock object to track the amount of time
 clock = pygame.time.Clock()
@@ -60,7 +60,7 @@ restart_img = pygame.image.load('img/restart_btn.png').convert_alpha()
 
 # background - только одно изображение doom.png
 doom_bg = pygame.image.load('doom.png').convert_alpha()
-# Масштабируем изображение под размер экрана
+# Масштабируем изображение под размер экрана (один раз при загрузке)
 doom_bg = pygame.transform.scale(doom_bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
 
 # store tiles in a list
@@ -83,6 +83,23 @@ item_boxes = {
     'Ammo'      : ammo_box_img,
     'Grenade'   : grenade_box_img
 }
+
+# Загружаем статичные изображения для игрока и врагов с оптимальным размером
+PLAYER_WIDTH = 50  # Задаем конкретный размер в пикселях
+PLAYER_HEIGHT = 80
+ENEMY_WIDTH = 70
+ENEMY_HEIGHT = 80
+
+player_img = pygame.image.load('img/player.png').convert_alpha()
+enemy_img = pygame.image.load('img/enemy.png').convert_alpha()
+
+# Масштабируем до конкретного размера, а не через множитель
+player_img = pygame.transform.scale(player_img, (PLAYER_WIDTH, PLAYER_HEIGHT))
+enemy_img = pygame.transform.scale(enemy_img, (ENEMY_WIDTH, ENEMY_HEIGHT))
+
+# Оптимизируем изображения для более быстрого рендеринга
+player_img = player_img.convert_alpha()
+enemy_img = enemy_img.convert_alpha()
 
 # define colours
 BG = (144, 201, 120)
@@ -124,7 +141,7 @@ def reset_level():
     return data
 
 class Soldier(pygame.sprite.Sprite):
-    def __init__(self, char_type, x, y, scale, speed, ammo, grenades):
+    def __init__(self, char_type, x, y, speed, ammo, grenades):
         pygame.sprite.Sprite.__init__(self)
         self.alive = True
         self.char_type = char_type
@@ -140,35 +157,25 @@ class Soldier(pygame.sprite.Sprite):
         self.jump = False
         self.in_air = True
         self.flip = False
-        self.animation_list = []
-        self.frame_index = 0
-        self.action = 0
-        self.update_time = pygame.time.get_ticks()
+        
+        # Используем уже оптимизированные изображения
+        if self.char_type == 'player':
+            self.image = player_img
+        else:
+            self.image = enemy_img
+            
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.width = self.image.get_width()
+        self.height = self.image.get_height()
+        
         # ai specific variables
         self.move_counter = 0
         self.vision = pygame.Rect(0, 0, 150, 20)
         self.idling = False
         self.idling_counter = 0
-        
-        # load all images for the players
-        animation_types = ['Idle', 'Run', 'Jump', 'Death']
-        for animation in animation_types:
-            temp_list = []
-            num_of_frames = len(os.listdir(f'img/{self.char_type}/{animation}'))
-            for i in range(num_of_frames):
-                img = pygame.image.load(f'img/{self.char_type}/{animation}/{i}.png').convert_alpha()
-                img = pygame.transform.scale(img, (int(img.get_width() * scale), int(img.get_height() * scale)))
-                temp_list.append(img)
-            self.animation_list.append(temp_list)
-
-        self.image = self.animation_list[self.action][self.frame_index]
-        self.rect = self.image.get_rect()
-        self.rect.center = (x, y)
-        self.width = self.image.get_width()
-        self.height = self.image.get_height()
 
     def update(self):
-        self.update_animation()
         self.check_alive()
         # update cooldown
         if self.shoot_cooldown > 0:
@@ -265,13 +272,10 @@ class Soldier(pygame.sprite.Sprite):
     def ai(self):
         if self.alive and player.alive:
             if self.idling == False and random.randint(1, 200) == 1:
-                self.update_action(0)
                 self.idling = True
                 self.idling_counter = 50
             # check if the ai in near the player
             if self.vision.colliderect(player.rect):
-                # stop running and face the player
-                self.update_action(0)
                 # shoot
                 self.shoot()
             else:
@@ -282,7 +286,6 @@ class Soldier(pygame.sprite.Sprite):
                         ai_moving_right = False
                     ai_moving_left = not ai_moving_right
                     self.move(ai_moving_left, ai_moving_right)
-                    self.update_action(1)
                     self.move_counter += 1
                     # update ai vision as the enemy moves
                     self.vision.center = (self.rect.centerx + 75 * self.direction, self.rect.centery)
@@ -296,36 +299,11 @@ class Soldier(pygame.sprite.Sprite):
         # scroll
         self.rect.x += screen_scroll
 
-    def update_animation(self):
-        # update animation
-        ANIMATION_COOLDOWN = 100
-        # update image depending on current frame
-        self.image = self.animation_list[self.action][self.frame_index]
-        # check if enough time has passed since the last update
-        if pygame.time.get_ticks() - self.update_time > ANIMATION_COOLDOWN:
-            self.update_time = pygame.time.get_ticks()
-            self.frame_index += 1
-        # if the animation has run out the reset back to the start
-        if self.frame_index >= len(self.animation_list[self.action]):
-            if self.action == 3:
-                self.frame_index = len(self.animation_list[self.action]) - 1
-            else:
-                self.frame_index = 0
-
-    def update_action(self, new_action):
-        # check if the new action is different to the previous one
-        if new_action != self.action:
-            self.action = new_action
-            # update the animation settings
-            self.frame_index = 0
-            self.update_time = pygame.time.get_ticks()
-
     def check_alive(self):
         if self.health <= 0:
             self.health = 0
             self.speed = 0
             self.alive = False
-            self.update_action(3)
 
     def draw(self):
         screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
@@ -354,10 +332,10 @@ class World():
                         decoration = Decoration(img, x * TILE_SIZE, y * TILE_SIZE)
                         decoration_group.add(decoration)
                     elif tile == 15:
-                        player = Soldier('player', x * TILE_SIZE, y * TILE_SIZE, 1.65, 5, 20, 5)
+                        player = Soldier('player', x * TILE_SIZE, y * TILE_SIZE, 5, 20, 5)
                         health_bar = HealthBar(10, 10, player.health, player.health)
                     elif tile == 16:
-                        enemy = Soldier('enemy', x * TILE_SIZE, y * TILE_SIZE, 1.65, 2, 20, 0)
+                        enemy = Soldier('enemy', x * TILE_SIZE, y * TILE_SIZE, 2, 20, 0)
                         enemy_group.add(enemy)
                     elif tile == 17:
                         item_box = ItemBox('Ammo', x * TILE_SIZE, y * TILE_SIZE)
@@ -694,13 +672,6 @@ while run:
                 # reduce grenades
                 player.grenades -= 1
                 grenade_thrown = True
-            
-            if player.in_air:
-                player.update_action(2)
-            elif moving_left or moving_right:
-                player.update_action(1)
-            else:
-                player.update_action(0)
             
             screen_scroll, level_complete = player.move(moving_left, moving_right)
             bg_scroll -= screen_scroll
