@@ -6,6 +6,8 @@ import csv
 import button
 import imageio
 import numpy as np
+import threading
+import time
 
 mixer.init()
 pygame.init()
@@ -46,7 +48,7 @@ grenade_thrown = False
 
 # load music and sounds
 pygame.mixer.music.load('audio/music2.mp3')
-pygame.mixer.music.set_volume(0.2) 
+pygame.mixer.music.set_volume(0.4) 
 jump_fx = pygame.mixer.Sound('audio/jump.wav')
 jump_fx.set_volume(0.05)
 shot_fx = pygame.mixer.Sound('audio/shot.wav')
@@ -112,7 +114,7 @@ PINK = (235, 65, 54)
 # define font
 font = pygame.font.SysFont('Futura', 30)
 
-# Функция для воспроизведения видео
+# Функция для воспроизведения видео без звука (звук запускаем отдельно)
 def play_intro_video(video_path):
     """Воспроизводит видео в начале игры"""
     try:
@@ -120,22 +122,30 @@ def play_intro_video(video_path):
         video = imageio.get_reader(video_path)
         fps = video.get_meta_data()['fps']
         
-        # Создаем поверхность для видео
-        video_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        # Запускаем музыку отдельно (если есть отдельный аудиофайл)
+        # Можно заменить на свой аудиофайл для интро
+        intro_music_path = 'audio/intro_music.mp3'
+        if os.path.exists(intro_music_path):
+            pygame.mixer.music.load(intro_music_path)
+            pygame.mixer.music.play()
+            pygame.mixer.music.set_volume(0.6) 
         
         # Воспроизводим видео
         for frame in video.iter_data():
             # Обрабатываем события
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    pygame.mixer.music.stop()
                     video.close()
                     return False
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                        pygame.mixer.music.stop()
                         video.close()
                         return True
             
             # Конвертируем frame в поверхность Pygame
+            # Правильно обрабатываем цветовые каналы
             frame_surface = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
             frame_surface = pygame.transform.scale(frame_surface, (SCREEN_WIDTH, SCREEN_HEIGHT))
             
@@ -145,7 +155,58 @@ def play_intro_video(video_path):
             clock.tick(fps)
         
         video.close()
+        pygame.mixer.music.stop()
         return True
+    except Exception as e:
+        print(f"Ошибка при воспроизведении видео: {e}")
+        return False
+
+# Альтернативная функция с использованием OpenCV (если imageio не работает)
+def play_intro_video_cv(video_path):
+    """Воспроизводит видео с использованием OpenCV"""
+    try:
+        import cv2
+        cap = cv2.VideoCapture(video_path)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        
+        # Запускаем музыку отдельно
+        intro_music_path = 'audio/intro_music.mp3'
+        if os.path.exists(intro_music_path):
+            pygame.mixer.music.load(intro_music_path)
+            pygame.mixer.music.play()
+        
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+                
+            # Обрабатываем события
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.mixer.music.stop()
+                    cap.release()
+                    return False
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                        pygame.mixer.music.stop()
+                        cap.release()
+                        return True
+            
+            # Конвертируем BGR в RGB и создаем поверхность
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = cv2.resize(frame, (SCREEN_WIDTH, SCREEN_HEIGHT))
+            frame_surface = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
+            
+            screen.blit(frame_surface, (0, 0))
+            pygame.display.update()
+            clock.tick(fps)
+        
+        cap.release()
+        pygame.mixer.music.stop()
+        return True
+    except ImportError:
+        print("OpenCV не установлен. Используйте: pip install opencv-python")
+        return False
     except Exception as e:
         print(f"Ошибка при воспроизведении видео: {e}")
         return False
@@ -641,10 +702,12 @@ run = True
 if show_video:
     video_path = 'intro_video.mp4'  # Укажите путь к вашему видео
     if os.path.exists(video_path):
+        # Пробуем сначала с imageio
         play_intro_video(video_path)
     # После видео сразу запускаем игру
     start_game = True
     start_intro = True
+    pygame.mixer.music.load('audio/music2.mp3')
     pygame.mixer.music.play(-1, 0.0, 5000)  # Запускаем музыку после видео
 else:
     # Если видео не нужно, показываем черный экран и запускаем игру
@@ -653,6 +716,7 @@ else:
     pygame.time.wait(1000)  # Пауза 1 секунда
     start_game = True
     start_intro = True
+    pygame.mixer.music.load('audio/music2.mp3')
     pygame.mixer.music.play(-1, 0.0, 5000)
 
 while run:
