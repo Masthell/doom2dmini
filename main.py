@@ -38,6 +38,7 @@ level = 1
 start_game = False
 start_intro = False
 show_video = True  # Показывать видео в начале
+show_death_video = False  # Флаг для показа видео смерти
 
 # define player action variables
 moving_left = False
@@ -114,99 +115,69 @@ PINK = (235, 65, 54)
 # define font
 font = pygame.font.SysFont('Futura', 30)
 
-# Функция для воспроизведения видео без звука (звук запускаем отдельно)
-def play_intro_video(video_path):
-    """Воспроизводит видео в начале игры"""
+# Функция для воспроизведения видео
+def play_video(video_path, audio_path=None, loop=False, show_restart=False, audio_volume=0.6):
+    """Воспроизводит видео с опциональным звуком и кнопкой рестарта"""
     try:
         # Загружаем видео
         video = imageio.get_reader(video_path)
         fps = video.get_meta_data()['fps']
         
         # Запускаем музыку отдельно (если есть отдельный аудиофайл)
-        # Можно заменить на свой аудиофайл для интро
-        intro_music_path = 'audio/intro_music.mp3'
-        if os.path.exists(intro_music_path):
-            pygame.mixer.music.load(intro_music_path)
-            pygame.mixer.music.play()
-            pygame.mixer.music.set_volume(0.6) 
+        if audio_path and os.path.exists(audio_path):
+            pygame.mixer.music.load(audio_path)
+            pygame.mixer.music.play(-1 if loop else 1)  # Зацикливаем если loop=True
+            pygame.mixer.music.set_volume(audio_volume)  # Устанавливаем громкость
         
-        # Воспроизводим видео
-        for frame in video.iter_data():
-            # Обрабатываем события
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.mixer.music.stop()
-                    video.close()
-                    return False
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+        video_playing = True
+        video_loops = 0
+        max_loops = -1 if loop else 1  # Бесконечно если loop=True, иначе 1 раз
+        
+        while video_playing:
+            # Воспроизводим видео
+            for frame in video.iter_data():
+                # Обрабатываем события
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
                         pygame.mixer.music.stop()
                         video.close()
-                        return True
+                        return False
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                            pygame.mixer.music.stop()
+                            video.close()
+                            return True
+                
+                # Конвертируем frame в поверхность Pygame
+                frame_surface = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
+                frame_surface = pygame.transform.scale(frame_surface, (SCREEN_WIDTH, SCREEN_HEIGHT))
+                
+                # Отображаем кадр
+                screen.blit(frame_surface, (0, 0))
+                
+                # Отображаем кнопку рестарта если нужно
+                if show_restart:
+                    if restart_button.draw(screen):
+                        pygame.mixer.music.stop()
+                        video.close()
+                        return "restart"
+                
+                pygame.display.update()
+                clock.tick(fps)
             
-            # Конвертируем frame в поверхность Pygame
-            # Правильно обрабатываем цветовые каналы
-            frame_surface = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
-            frame_surface = pygame.transform.scale(frame_surface, (SCREEN_WIDTH, SCREEN_HEIGHT))
-            
-            # Отображаем кадр
-            screen.blit(frame_surface, (0, 0))
-            pygame.display.update()
-            clock.tick(fps)
+            # Если видео закончилось
+            video_loops += 1
+            if max_loops != -1 and video_loops >= max_loops:
+                video_playing = False
+            else:
+                # Перезапускаем видео с начала
+                video.close()
+                video = imageio.get_reader(video_path)
         
         video.close()
-        pygame.mixer.music.stop()
+        if audio_path and os.path.exists(audio_path):
+            pygame.mixer.music.stop()
         return True
-    except Exception as e:
-        print(f"Ошибка при воспроизведении видео: {e}")
-        return False
-
-# Альтернативная функция с использованием OpenCV (если imageio не работает)
-def play_intro_video_cv(video_path):
-    """Воспроизводит видео с использованием OpenCV"""
-    try:
-        import cv2
-        cap = cv2.VideoCapture(video_path)
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        
-        # Запускаем музыку отдельно
-        intro_music_path = 'audio/intro_music.mp3'
-        if os.path.exists(intro_music_path):
-            pygame.mixer.music.load(intro_music_path)
-            pygame.mixer.music.play()
-        
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-                
-            # Обрабатываем события
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.mixer.music.stop()
-                    cap.release()
-                    return False
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
-                        pygame.mixer.music.stop()
-                        cap.release()
-                        return True
-            
-            # Конвертируем BGR в RGB и создаем поверхность
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame = cv2.resize(frame, (SCREEN_WIDTH, SCREEN_HEIGHT))
-            frame_surface = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
-            
-            screen.blit(frame_surface, (0, 0))
-            pygame.display.update()
-            clock.tick(fps)
-        
-        cap.release()
-        pygame.mixer.music.stop()
-        return True
-    except ImportError:
-        print("OpenCV не установлен. Используйте: pip install opencv-python")
-        return False
     except Exception as e:
         print(f"Ошибка при воспроизведении видео: {e}")
         return False
@@ -664,9 +635,8 @@ class ScreenFade():
 
         return fade_complete
 
-# create screen fades
-intro_fade = ScreenFade(1, BLACK, 4)
-death_fade = ScreenFade(2, PINK, 4)
+# create screen fades (делаем intro_fade быстрее - speed был 4, теперь 8)
+intro_fade = ScreenFade(1, BLACK, 8)  # Увеличили скорость в 2 раза
 
 # create buttons (только restart)
 restart_button = button.Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 50, restart_img, 2)
@@ -700,10 +670,10 @@ run = True
 
 # Воспроизводим видео в начале, если оно есть
 if show_video:
-    video_path = 'intro_video.mp4'  # Укажите путь к вашему видео
-    if os.path.exists(video_path):
-        # Пробуем сначала с imageio
-        play_intro_video(video_path)
+    intro_video_path = 'intro_video.mp4'  # Укажите путь к вашему видео
+    intro_audio_path = 'audio/intro_music.mp3'  # Укажите путь к аудио для интро
+    if os.path.exists(intro_video_path):
+        play_video(intro_video_path, intro_audio_path, loop=False, show_restart=False, audio_volume=0.6)
     # После видео сразу запускаем игру
     start_game = True
     start_intro = True
@@ -722,89 +692,16 @@ else:
 while run:
     clock.tick(FPS)
     
-    # Игра запускается сразу после видео, без меню
-    draw_bg()
-    # draw world map
-    world.draw()
-    # show player health
-    health_bar.draw(player.health)
-    # show ammo
-    draw_text('AMMO: ', font, WHITE, 10, 35)
-    for x in range(player.ammo):
-        screen.blit(bullet_img, (90 + (x * 10), 40))
-    # show grenades
-    draw_text('GRENADES: ', font, WHITE, 10, 60)
-    for x in range(player.grenades):
-        screen.blit(grenade_img, (135 + (x * 15), 60))
-    
-    player.update()
-    player.draw()
-    
-    for enemy in enemy_group:
-        enemy.ai()
-        enemy.update()
-        enemy.draw()
-    
-    # update and draw groups
-    bullet_group.update()
-    grenade_group.update()
-    explosion_group.update()
-    item_box_group.update()
-    decoration_group.update()
-    water_group.update()
-    exit_group.update()
-    
-    bullet_group.draw(screen)
-    grenade_group.draw(screen)
-    explosion_group.draw(screen)
-    item_box_group.draw(screen)
-    decoration_group.draw(screen)
-    water_group.draw(screen)
-    exit_group.draw(screen)
-
-    # show intro
-    if start_intro == True:
-        if intro_fade.fade():
-            start_intro = False
-            intro_fade.fade_counter = 0
-
-    # update player actions
-    if player.alive:
-        # shoot bullets
-        if shoot:
-            player.shoot()
-        # throw grenades
-        elif grenade and grenade_thrown == False and player.grenades > 0:
-            grenade = Grenade(player.rect.centerx + (0.5 * player.rect.size[0] * player.direction),\
-                        player.rect.top, player.direction)
-            grenade_group.add(grenade)
-            # reduce grenades
-            player.grenades -= 1
-            grenade_thrown = True
-        
-        screen_scroll, level_complete = player.move(moving_left, moving_right)
-        bg_scroll -= screen_scroll
-        
-        # check if player has completed the level
-        if level_complete:
-            start_intro = True
-            level += 1
-            bg_scroll = 0
-            world_data = reset_level()
-            if level <= MAX_LEVELS:
-                # load in level data and create world
-                with open(f'level{level}_data.csv', newline='') as csvfile:
-                    reader = csv.reader(csvfile, delimiter=',')
-                    for x, row in enumerate(reader):
-                        for y, tile in enumerate(row):
-                            world_data[x][y] = int(tile)
-                world = World()
-                player, health_bar = world.process_data(world_data)    
-    else:
-        screen_scroll = 0
-        if death_fade.fade():
-            if restart_button.draw(screen):
-                death_fade.fade_counter = 0
+    if show_death_video:
+        # Показываем видео смерти с громкостью 1.0 (максимальная)
+        death_video_path = 'death_video.mp4'  # Укажите путь к видео смерти
+        death_audio_path = 'audio/death_music.mp3'  # Укажите путь к аудио для смерти
+        if os.path.exists(death_video_path):
+            result = play_video(death_video_path, death_audio_path, loop=True, show_restart=True, audio_volume=1.0)  # Громкость 1.0 = 100%
+            if result == "restart":
+                # Рестарт игры
+                show_death_video = False
+                death_fade_complete = False
                 start_intro = True
                 bg_scroll = 0
                 world_data = reset_level()
@@ -816,13 +713,120 @@ while run:
                             world_data[x][y] = int(tile)
                 world = World()
                 player, health_bar = world.process_data(world_data)
+                pygame.mixer.music.load('audio/music2.mp3')
+                pygame.mixer.music.play(-1, 0.0, 5000)
+            else:
+                run = False
+        else:
+            # Если видео смерти нет, просто показываем черный экран с кнопкой
+            screen.fill(BLACK)
+            if restart_button.draw(screen):
+                show_death_video = False
+                start_intro = True
+                bg_scroll = 0
+                world_data = reset_level()
+                with open(f'level{level}_data.csv', newline='') as csvfile:
+                    reader = csv.reader(csvfile, delimiter=',')
+                    for x, row in enumerate(reader):
+                        for y, tile in enumerate(row):
+                            world_data[x][y] = int(tile)
+                world = World()
+                player, health_bar = world.process_data(world_data)
+                pygame.mixer.music.load('audio/music2.mp3')
+                pygame.mixer.music.play(-1, 0.0, 5000)
+            pygame.display.update()
+    elif start_game:
+        # Игра запущена
+        draw_bg()
+        # draw world map
+        world.draw()
+        # show player health
+        health_bar.draw(player.health)
+        # show ammo
+        draw_text('AMMO: ', font, WHITE, 10, 35)
+        for x in range(player.ammo):
+            screen.blit(bullet_img, (90 + (x * 10), 40))
+        # show grenades
+        draw_text('GRENADES: ', font, WHITE, 10, 60)
+        for x in range(player.grenades):
+            screen.blit(grenade_img, (135 + (x * 15), 60))
+        
+        player.update()
+        player.draw()
+        
+        for enemy in enemy_group:
+            enemy.ai()
+            enemy.update()
+            enemy.draw()
+        
+        # update and draw groups
+        bullet_group.update()
+        grenade_group.update()
+        explosion_group.update()
+        item_box_group.update()
+        decoration_group.update()
+        water_group.update()
+        exit_group.update()
+        
+        bullet_group.draw(screen)
+        grenade_group.draw(screen)
+        explosion_group.draw(screen)
+        item_box_group.draw(screen)
+        decoration_group.draw(screen)
+        water_group.draw(screen)
+        exit_group.draw(screen)
+
+        # show intro (теперь быстрее)
+        if start_intro == True:
+            if intro_fade.fade():
+                start_intro = False
+                intro_fade.fade_counter = 0
+
+        # update player actions
+        if player.alive:
+            # shoot bullets
+            if shoot:
+                player.shoot()
+            # throw grenades
+            elif grenade and grenade_thrown == False and player.grenades > 0:
+                grenade = Grenade(player.rect.centerx + (0.5 * player.rect.size[0] * player.direction),\
+                            player.rect.top, player.direction)
+                grenade_group.add(grenade)
+                # reduce grenades
+                player.grenades -= 1
+                grenade_thrown = True
+            
+            screen_scroll, level_complete = player.move(moving_left, moving_right)
+            bg_scroll -= screen_scroll
+            
+            # check if player has completed the level
+            if level_complete:
+                start_intro = True
+                level += 1
+                bg_scroll = 0
+                world_data = reset_level()
+                if level <= MAX_LEVELS:
+                    # load in level data and create world
+                    with open(f'level{level}_data.csv', newline='') as csvfile:
+                        reader = csv.reader(csvfile, delimiter=',')
+                        for x, row in enumerate(reader):
+                            for y, tile in enumerate(row):
+                                world_data[x][y] = int(tile)
+                    world = World()
+                    player, health_bar = world.process_data(world_data)    
+        else:
+            screen_scroll = 0
+            # Включаем видео смерти
+            show_death_video = True
+            # Останавливаем музыку игры
+            pygame.mixer.music.stop()
 
     for event in pygame.event.get():
         # quit game
         if event.type == pygame.QUIT:
             run = False
         # keyboard presses
-        if event.type == pygame.KEYDOWN:
+        if event.type == pygame.KEYDOWN and not show_death_video:
             if event.key == pygame.K_a or event.key == pygame.K_LEFT:
                 moving_left = True
             if event.key == pygame.K_d or event.key == pygame.K_RIGHT:
@@ -838,7 +842,7 @@ while run:
                 run = False
 
         # keyboard button released
-        if event.type == pygame.KEYUP:
+        if event.type == pygame.KEYUP and not show_death_video:
             if event.key == pygame.K_a or event.key == pygame.K_LEFT:
                 moving_left = False
             if event.key == pygame.K_d or event.key == pygame.K_RIGHT:
