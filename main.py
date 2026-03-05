@@ -75,6 +75,7 @@ for x in range(TILE_TYPES):
 
 # bullet
 bullet_img = pygame.image.load('img/icons/bullet.png').convert_alpha()
+bullet_img = pygame.transform.scale(bullet_img, (20, 10))
 # grenade
 grenade_img = pygame.image.load('img/icons/grenade.png').convert_alpha()
 # pick up boxes
@@ -268,7 +269,7 @@ class Soldier(pygame.sprite.Sprite):
 
         # jump
         if self.jump == True and self.in_air == False:
-            self.vel_y = -11
+            self.vel_y = -14
             self.jump = False
             self.in_air = True
 
@@ -374,9 +375,12 @@ class Soldier(pygame.sprite.Sprite):
             self.health = 0
             self.speed = 0
             self.alive = False
+            if self.char_type == 'enemy':
+                self.kill()
 
     def draw(self):
-        screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+        if self.alive:
+            screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
 
 class World():
     def __init__(self):
