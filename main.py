@@ -31,7 +31,7 @@ ROWS = 16
 COLS = 150
 TILE_SIZE = SCREEN_HEIGHT // ROWS
 TILE_TYPES = 21
-MAX_LEVELS = 3
+MAX_LEVELS = 1
 screen_scroll = 0
 bg_scroll = 0
 level = 1
@@ -80,8 +80,11 @@ bullet_img = pygame.transform.scale(bullet_img, (20, 10))
 grenade_img = pygame.image.load('img/icons/grenade.png').convert_alpha()
 # pick up boxes
 health_box_img = pygame.image.load('img/icons/health_box.png').convert_alpha()
+health_box_img = pygame.transform.scale(health_box_img, (TILE_SIZE, TILE_SIZE))
 ammo_box_img = pygame.image.load('img/icons/ammo_box.png').convert_alpha()
+ammo_box_img = pygame.transform.scale(ammo_box_img, (TILE_SIZE, TILE_SIZE))
 grenade_box_img = pygame.image.load('img/icons/grenade_box.png').convert_alpha()
+grenade_box_img = pygame.transform.scale(grenade_box_img, (TILE_SIZE, TILE_SIZE))
 item_boxes = {
     'Health'    : health_box_img,
     'Ammo'      : ammo_box_img,
@@ -805,7 +808,6 @@ while run:
             
             # check if player has completed the level
             if level_complete:
-                start_intro = True
                 level += 1
                 bg_scroll = 0
                 world_data = reset_level()
@@ -817,7 +819,27 @@ while run:
                             for y, tile in enumerate(row):
                                 world_data[x][y] = int(tile)
                     world = World()
-                    player, health_bar = world.process_data(world_data)    
+                    player, health_bar = world.process_data(world_data)
+                else:
+                    # Game completed!
+                    win_video_path = 'win_video.mp4'
+                    win_audio_path = 'audio/win_audio.mp3'
+                    if os.path.exists(win_video_path):
+                        play_video(win_video_path, win_audio_path, loop=True, show_restart=True, audio_volume=0.8)
+                    
+                    # Return to first level or reset
+                    level = 1
+                    bg_scroll = 0
+                    world_data = reset_level()
+                    with open(f'level{level}_data.csv', newline='') as csvfile:
+                        reader = csv.reader(csvfile, delimiter=',')
+                        for x, row in enumerate(reader):
+                            for y, tile in enumerate(row):
+                                world_data[x][y] = int(tile)
+                    world = World()
+                    player, health_bar = world.process_data(world_data)
+                    pygame.mixer.music.load('audio/music2.mp3')
+                    pygame.mixer.music.play(-1, 0.0, 5000)
         else:
             screen_scroll = 0
             # Включаем видео смерти
