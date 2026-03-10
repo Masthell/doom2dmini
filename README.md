@@ -1,34 +1,42 @@
-# PyShooter
+# Doom2DMini
 
-[![Language](https://img.shields.io/badge/language-python-blue.svg?style=flat)](https://www.python.org)
-[![Module](https://img.shields.io/badge/module-pygame-brightgreen.svg?style=flat)](http://www.pygame.org/news.html)
+Doom2DMini — это двухмерный шутер, разработанный на Python с использованием библиотеки Pygame. Игрок перемещается по уровню и сражается с врагами.
 
-PyShooter is a two-dimensional shooter game in which the player runs horizontally and fires at enemies.
+## Disclaimer (Отказ от ответственности)
 
-## Demo: https://www.youtube.com/watch?v=rg-49OTHZVY 
+Данный проект является исключительно учебным и выполнен в рамках домашнего задания.
 
-https://user-images.githubusercontent.com/77569653/214920668-ef657089-b71f-43c8-8011-a202a09f5531.mp4
-
-
-## How To Play
-
-- If you don't have [Python](https://www.python.org/downloads/) or [Pygame](http://www.pygame.org/download.shtml) installed, you can simply double click the .exe file to play the game.
-  **Note:** _The .exe file needs to stay in the same directory as the sounds, images, and font folders._
-
-Install Pygame ```pip install pygame```
-
-- If you have the correct version of Python and Pygame installed, you can run the program in the command prompt / terminal.
-
-```bash
-cd doom2dmini
-python main.py
-```
-
+* Источник вдохновения: Проект базируется на коде и концепции репозитория [PyShooter](https://github.com/SamirPaulb/PyShooter) от SamirPaulb.
+* Цели: Проект создан в личных образовательных целях для изучения основ разработки игр на Python.
+* Авторские права: Мы не претендуем на авторство оригинального кода и используем его исключительно для практики. Проект не предназначен для коммерческого использования или извлечения прибыли.
+* Оригинальный проект PyShooter распространяется под лицензией CC0 1.0 Universal, что позволяет использовать и модифицировать код.
 
 ---
 
-Credits for assets used: 
-1. https://erayzesen.itch.io/pixel-platformer 
-2. https://secrethideout.itch.io/team-wars-platformer-battle 
-4. https://gushh.net/blog/free-game-sprites-explosion-3  
-5. https://mtk.itch.io/grenades-16x16 
+## How To Play (Как играть)
+
+Если у вас установлен Python, выполните следующие шаги:
+
+1. Установите библиотеку Pygame:
+pip install pygame
+
+2. Перейдите в директорию проекта и запустите основной файл:
+cd doom2dmini
+python main.py
+
+---
+
+## Credits
+
+Мы выражаем благодарность авторам графических и звуковых ресурсов, которые помогли сделать этот проект живым:
+
+1. Environment & Tiles: [Erayzesen (Pixel Platformer)](https://erayzesen.itch.io/pixel-platformer)
+3. Видео с тт и анимации дум: [тт](https://vt.tiktok.com/ZSuheVYcv/) [анимация](https://youtu.be/pyoKTeBroQM?si=U2OTtUQuwUDjIgkx) [музыка The Only Thing They Fear is YouDoom Eternal OST](https://web.ligaudio.ru/mp3/doom.ost) 
+4. Grenades: [Mtk (Grenades 16x16)](https://mtk.itch.io/grenades-16x16)
+5. Original Logic & Inspiration: [SamirPaulb (PyShooter)](https://github.com/SamirPaulb/PyShooter)
+
+---
+
+## License
+
+Этот проект открыт и доступен для изучения. Оригинальная лицензия базового проекта — CC0 1.0 Universal.
