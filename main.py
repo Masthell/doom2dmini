@@ -1,4 +1,4 @@
-﻿import pygame
+import pygame
 from pygame import mixer
 import os
 import random
@@ -51,12 +51,22 @@ start_intro = False
 show_video = True  
 show_death_video = False  
 
-# define player action variables
+# define player action variables (инициализируем и сбрасываем через функцию)
 moving_left = False
 moving_right = False
 shoot = False
 grenade = False
 grenade_thrown = False
+
+
+def reset_controls():
+    """Полностью сбрасывает управление игрока, чтобы он не «ехал» сам после смерти/видео."""
+    global moving_left, moving_right, shoot, grenade, grenade_thrown
+    moving_left = False
+    moving_right = False
+    shoot = False
+    grenade = False
+    grenade_thrown = False
 
 # create sprite groups
 demon_group = pygame.sprite.Group()
@@ -106,10 +116,10 @@ supply_crates = {
     'Grenade'   : rocket_crate_img
 }
 
-PLAYER_WIDTH = 50  
-PLAYER_HEIGHT = 80
-ENEMY_WIDTH = 70
-ENEMY_HEIGHT = 80
+PLAYER_WIDTH = 40  
+PLAYER_HEIGHT = 64
+ENEMY_WIDTH = 60
+ENEMY_HEIGHT = 72
 
 player_img = safe_load_image('img/player.png', (PLAYER_WIDTH, PLAYER_HEIGHT))
 enemy_img = safe_load_image('img/enemy.png', (ENEMY_WIDTH, ENEMY_HEIGHT))
@@ -120,23 +130,39 @@ GREEN = (0, 255, 0)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 
-# define font
-font = pygame.font.SysFont('Futura', 30)
+# define font (меньший размер для интерфейса)
+font = pygame.font.SysFont('Arial', 18)
 
 
 def play_video(video_path, audio_path=None, loop=False, show_restart=False, audio_volume=0.6):
+    """
+    Проигрывает видео целиком, с возможностью:
+    - пропуска по SPACE/ENTER;
+    - выхода из игры по закрытию окна;
+    - отображения кнопки рестарта (для экрана смерти/победы).
+    Возвращает:
+        True       - если видео успешно отыграло или было пропущено;
+        "restart"  - если нажата кнопка рестарта;
+        False      - если окно закрыто или произошла ошибка.
+    """
     try:
+        if not os.path.exists(video_path):
+            print(f"Видео не найдено: {video_path}")
+            return False
+
         video = imageio.get_reader(video_path)
-        fps = video.get_meta_data()['fps']
+        meta = video.get_meta_data()
+        fps = meta.get('fps', 30)
         
+        # Подготовка аудио
         if audio_path and os.path.exists(audio_path):
             pygame.mixer.music.load(audio_path)
-            pygame.mixer.music.play(-1 if loop else 1)  
-            pygame.mixer.music.set_volume(audio_volume)  
+            pygame.mixer.music.play(-1 if loop else 1)
+            pygame.mixer.music.set_volume(audio_volume)
         
         video_playing = True
         video_loops = 0
-        max_loops = -1 if loop else 1  
+        max_loops = -1 if loop else 1
         
         while video_playing:
             for frame in video.iter_data():
@@ -146,15 +172,34 @@ def play_video(video_path, audio_path=None, loop=False, show_restart=False, audi
                         video.close()
                         return False
                     if event.type == pygame.KEYDOWN:
-                        if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                        if event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                            # Пропуск ролика по клавиатуре
                             pygame.mixer.music.stop()
                             video.close()
                             return True
+                    if event.type == pygame.MOUSEBUTTONDOWN:
+                        # Пропуск ролика по клику мышью (как было раньше)
+                        pygame.mixer.music.stop()
+                        video.close()
+                        return True
                 
                 frame_surface = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
                 frame_surface = pygame.transform.scale(frame_surface, (SCREEN_WIDTH, SCREEN_HEIGHT))
                 
                 screen.blit(frame_surface, (0, 0))
+
+                # Подсказка «нажмите SPACE, чтобы пропустить»
+                hint_font = pygame.font.SysFont('Arial', 20)
+                hint_text = hint_font.render('Нажмите SPACE или ENTER, чтобы пропустить', True, (255, 255, 255))
+                hint_rect = hint_text.get_rect()
+                hint_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT - 30)
+                # Небольшой полупрозрачный фон под текстом
+                hint_bg = pygame.Surface((hint_rect.width + 20, hint_rect.height + 10))
+                hint_bg.set_alpha(120)
+                hint_bg.fill((0, 0, 0))
+                hint_bg_rect = hint_bg.get_rect(center=hint_rect.center)
+                screen.blit(hint_bg, hint_bg_rect)
+                screen.blit(hint_text, hint_rect)
                 
                 if show_restart:
                     if restart_button.draw(screen):
@@ -177,7 +222,7 @@ def play_video(video_path, audio_path=None, loop=False, show_restart=False, audi
             pygame.mixer.music.stop()
         return True
     except Exception as e:
-        print(f"РћС€РёР±РєР° РїСЂРё РІРѕСЃРїСЂРѕРёР·РІРµРґРµРЅРёРё РІРёРґРµРѕ: {e}")
+        print(f"Ошибка при воспроизведении видео: {e}")
         return False
 
 def draw_text(text, font, text_col, x, y):
@@ -219,6 +264,9 @@ def load_level(level):
     player, health_bar = hell_map.process_data(data)
     return data, hell_map, player, health_bar
 
+
+
+
 class DoomGuy(pygame.sprite.Sprite):
     def __init__(self, char_type, x, y, speed, ammo, grenades):
         pygame.sprite.Sprite.__init__(self)
@@ -236,53 +284,90 @@ class DoomGuy(pygame.sprite.Sprite):
         self.jump = False
         self.in_air = True
         self.flip = False
-    
-        if self.char_type == 'player':
-            self.image = player_img
-        else:
-            self.image = enemy_img
-            
+        
+        # --- Загрузка анимаций: Idle, Run, Jump (улучшенная анимация ног) ---
+        target_width = PLAYER_WIDTH if self.char_type == 'player' else ENEMY_WIDTH
+        target_height = PLAYER_HEIGHT if self.char_type == 'player' else ENEMY_HEIGHT
+        fallback_img = player_img if char_type == 'player' else enemy_img
+
+        def load_animation_frames(folder_name):
+            frames = []
+            path = f'img/{self.char_type}/{folder_name}'
+            if os.path.exists(path) and len(os.listdir(path)) > 0:
+                for i in range(len(os.listdir(path))):
+                    img_path = f'{path}/{i}.png'
+                    if os.path.exists(img_path):
+                        img = pygame.image.load(img_path).convert_alpha()
+                        img = pygame.transform.scale(img, (target_width, target_height))
+                        frames.append(img)
+            return frames
+
+        self.animations = {}
+        self.animations['run'] = load_animation_frames('Run')
+        self.animations['idle'] = load_animation_frames('Idle')
+        self.animations['jump'] = load_animation_frames('Jump')
+
+        # Запас: если папка пустая — используем Run или один спрайт
+        for key in ('idle', 'jump'):
+            if len(self.animations[key]) == 0:
+                self.animations[key] = self.animations['run'][:1] if self.animations['run'] else [fallback_img]
+        if len(self.animations['run']) == 0:
+            self.animations['run'] = [fallback_img]
+
+        self.animation_state = 'idle'
+        self.animation_list = self.animations['idle']
+        self.frame_index = 0
+        self.update_time = pygame.time.get_ticks()
+        self.moved_last_frame = False  # для плавной анимации бега только при реальном движении
+
+        self.image = self.animation_list[self.frame_index]
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
         self.width = self.image.get_width()
         self.height = self.image.get_height()
         
-        # ai specific variables
+        # AI переменные
         self.move_counter = 0
         self.vision = pygame.Rect(0, 0, 150, 20)
         self.idling = False
         self.idling_counter = 0
 
+    def update_animation(self):
+        # Переключаем набор кадров по состоянию: idle / run / jump
+        list_for_state = self.animations.get(self.animation_state, self.animations['idle'])
+        if list_for_state != self.animation_list:
+            self.animation_list = list_for_state
+            self.frame_index = 0
+        self.image = self.animation_list[self.frame_index]
+
+        now = pygame.time.get_ticks()
+        if self.animation_state == 'idle':
+            cooldown = 120
+        elif self.animation_state == 'run':
+            cooldown = 80  # быстрее смена кадров — плавнее ноги
+            if not self.moved_last_frame:
+                self.frame_index = 0
+                self.update_time = now
+                return
+        else:  # jump
+            cooldown = 100
+        if now - self.update_time > cooldown:
+            self.update_time = now
+            self.frame_index = (self.frame_index + 1) % len(self.animation_list)
+
     def update(self):
         self.check_alive()
-        # update cooldown
         if self.shoot_cooldown > 0:
             self.shoot_cooldown -= 1
-
-    def shoot(self):
-        if self.shoot_cooldown == 0 and self.ammo > 0:
-            self.shoot_cooldown = 20
-            plasma = PlasmaBolt(self.rect.centerx + (0.75 * self.rect.size[0] * self.direction), self.rect.centery, self.direction)
-            plasma_group.add(plasma)
-            # reduce ammo
-            self.ammo -= 1
-            shot_fx.play()
-
-    def throw_rocket(self):
-        if self.grenades > 0:
-            rocket = DoomRocket(self.rect.centerx + (0.5 * self.rect.size[0] * self.direction), self.rect.top, self.direction)
-            rocket_group.add(rocket)
-            # reduce rockets
-            self.grenades -= 1
-            return True
-        return False
+        
+        if self.alive:
+            self.update_animation()
 
     def move(self, moving_left, moving_right):
-        # reset movement variables
         screen_scroll = 0
         dx = 0
         dy = 0
-        # assign movement variables if moving left or right
+
         if moving_left:
             dx = -self.speed
             self.flip = True
@@ -292,60 +377,52 @@ class DoomGuy(pygame.sprite.Sprite):
             self.flip = False
             self.direction = 1
 
-        # jump
         if self.jump == True and self.in_air == False:
             self.vel_y = -14
             self.jump = False
             self.in_air = True
 
-        # apply gravity
         self.vel_y += GRAVITY
         dy += self.vel_y
 
-        # check for collision
+        # Коллизии с картой
         for tile in hell_map.obstacle_list:
-            # check collision in the x direction
             if tile[1].colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
                 dx = 0
-                # if the ai has hit a wall then make it turn around
                 if self.char_type == 'enemy':
                     self.direction *= -1
                     self.move_counter = 0
-            # check for collision in the y direction
             if tile[1].colliderect(self.rect.x, self.rect.y + dy, self.width, self.height):
-                # check if below the ground, i.e. jumping
                 if self.vel_y < 0:
                     self.vel_y = 0
                     dy = tile[1].bottom - self.rect.top
-                # check if above the ground, i.e. falling
                 elif self.vel_y >= 0:
                     self.vel_y = 0
                     self.in_air = False
                     dy = tile[1].top - self.rect.bottom
 
-        # check for collision with water
+        # Вода и выход
         if pygame.sprite.spritecollide(self, water_group, False):
             self.health = 0
-
-        # check for collision with exit
         level_complete = False
         if pygame.sprite.spritecollide(self, exit_group, False):
             level_complete = True
-
-        # check if fallen off the map
         if self.rect.bottom > SCREEN_HEIGHT:
             self.health = 0
 
-        # check if going off the edges of the screen
+        # Границы экрана
         if self.char_type == 'player':
             if self.rect.left + dx < 0 or self.rect.right + dx > SCREEN_WIDTH:
                 dx = 0
 
-        # update rectangle position
         self.rect.x += dx
         self.rect.y += dy
 
-        # update scroll based on player position
+        # Состояние для анимации ног: прыжок / бег / стойка
+        self.moved_last_frame = dx != 0
+        self.animation_state = 'jump' if self.in_air else ('run' if dx != 0 else 'idle')
+
+        # Скроллинг
         if self.char_type == 'player':
             if (self.rect.right > SCREEN_WIDTH - SCROLL_THRESH and bg_scroll < (hell_map.level_length * TILE_SIZE) - SCREEN_WIDTH)\
                 or (self.rect.left < SCROLL_THRESH and bg_scroll > abs(dx)):
@@ -359,18 +436,27 @@ class DoomGuy(pygame.sprite.Sprite):
             self.shoot_cooldown = 20
             plasma = PlasmaBolt(self.rect.centerx + (0.75 * self.rect.size[0] * self.direction), self.rect.centery, self.direction)
             plasma_group.add(plasma)
-            # reduce ammo
             self.ammo -= 1
             shot_fx.play()
 
+    def throw_rocket(self):
+        if self.grenades > 0:
+            rocket = DoomRocket(self.rect.centerx + (0.5 * self.rect.size[0] * self.direction), self.rect.top, self.direction)
+            rocket_group.add(rocket)
+            self.grenades -= 1
+            return True
+        return False
+
     def ai(self):
+        # Используем глобальный screen_scroll, чтобы враги двигались вместе с камерой
+        global screen_scroll
         if self.alive and player.alive:
             if self.idling == False and random.randint(1, 200) == 1:
                 self.idling = True
                 self.idling_counter = 50
-            # check if the ai in near the player
+            
             if self.vision.colliderect(player.rect):
-                # shoot
+                self.idling = True
                 self.shoot()
             else:
                 if self.idling == False:
@@ -381,7 +467,6 @@ class DoomGuy(pygame.sprite.Sprite):
                     ai_moving_left = not ai_moving_right
                     self.move(ai_moving_left, ai_moving_right)
                     self.move_counter += 1
-                    # update ai vision as the enemy moves
                     self.vision.center = (self.rect.centerx + 75 * self.direction, self.rect.centery)
                     if self.move_counter > TILE_SIZE:
                         self.direction *= -1
@@ -390,8 +475,12 @@ class DoomGuy(pygame.sprite.Sprite):
                     self.idling_counter -= 1
                     if self.idling_counter <= 0:
                         self.idling = False
-        # scroll
-        self.rect.x += screen_scroll
+        
+        # Движение врага относительно скроллинга мира
+        try:
+            self.rect.x += screen_scroll
+        except NameError:
+            pass # Если screen_scroll еще не создан
 
     def check_alive(self):
         if self.health <= 0:
@@ -688,6 +777,7 @@ if show_video:
     intro_audio_path = 'audio/intro_music.mp3' 
     if os.path.exists(intro_video_path):
         play_video(intro_video_path, intro_audio_path, loop=False, show_restart=False, audio_volume=0.6)
+    reset_controls()
     start_game = True
     start_intro = True
     pygame.mixer.music.load('audio/music2.mp3')
@@ -696,6 +786,7 @@ else:
     screen.fill(BLACK)
     pygame.display.update()
     pygame.time.wait(1000)  
+    reset_controls()
     start_game = True
     start_intro = True
     pygame.mixer.music.load('audio/music2.mp3')
@@ -724,25 +815,28 @@ def handle_events():
 def update_game():
     global bg_scroll, level, level_complete, show_death_video, grenade_thrown, world_data, hell_map, player, health_bar, screen_scroll, start_intro, start_game
     
+    # Заставка смерти: показываем видео или экран с кнопкой «Рестарт»
     if show_death_video:
-        death_video_path = 'death_video.mp4'  
-        death_audio_path = 'audio/death_music.mp3'  
+        death_video_path = 'death_video.mp4'
+        death_audio_path = 'audio/death_music.mp3'
         if os.path.exists(death_video_path):
-            result = play_video(death_video_path, death_audio_path, loop=True, show_restart=True, audio_volume=1.0)  
-            if result == "restart":
+            result = play_video(death_video_path, death_audio_path, loop=True, show_restart=True, audio_volume=1.0)
+            if result == "restart" or result is True:
+                # Рестарт по кнопке или пропуск заставки — перезапуск уровня
+                reset_controls()
                 show_death_video = False
                 start_intro = True
                 bg_scroll = 0
                 world_data, hell_map, player, health_bar = load_level(level)
                 pygame.mixer.music.load('audio/music2.mp3')
                 pygame.mixer.music.play(-1, 0.0, 5000)
-            else:
-                return False # signal to quit
+            elif result is False:
+                return False  # выход из игры (закрыли окно)
         else:
-            # Handle death screen restart button in Draw or here?
-            # It's better to keep it in a loop for now or handled specially.
+            # Видео нет — показываем экран с кнопкой рестарта в draw_frame
             pass
-    elif start_game:
+
+    if start_game:
         player.update()
         for demon in demon_group:
             demon.ai()
@@ -789,7 +883,9 @@ def update_game():
                     pygame.mixer.music.load('audio/music2.mp3')
                     pygame.mixer.music.play(-1, 0.0, 5000)
         else:
-            screen_scroll = 0 # Reset screen_scroll on death
+            # При смерти игрока просто перезапускаем уровень,
+            # чтобы не включалось второе видео вместо игры
+            screen_scroll = 0
             show_death_video = True
             pygame.mixer.music.stop()
     return True
